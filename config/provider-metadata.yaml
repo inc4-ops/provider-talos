@@ -1,0 +1,328 @@
+name: siderolabs/talos
+resources:
+    talos_cluster:
+        subCategory: ""
+        description: 'Manages a Talos cluster: bootstraps etcd and tracks Kubernetes version. This resource completes once the Talos layer (etcd, apid, kubelet) is healthy across all control plane nodes. It does not wait for Kubernetes components to be ready — use talos_cluster_health for that before depending on the Kubernetes API.'
+        name: talos_cluster
+        title: talos_cluster Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                  "depends_on": [
+                    "${talos_machine_configuration_apply.this}"
+                  ],
+                  "kubernetes_version": "v1.32.0",
+                  "node": "10.5.0.2"
+                }
+              references:
+                client_configuration: talos_machine_secrets.this.client_configuration
+              dependencies:
+                talos_machine_configuration_apply.this: |-
+                    {
+                      "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                      "config_patches": [
+                        "${yamlencode({\n      machine = {\n        install = {\n          disk = \"/dev/sda\"\n        }\n      }\n    })}"
+                      ],
+                      "machine_configuration_input": "${data.talos_machine_configuration.this.machine_configuration}",
+                      "node": "10.5.0.2"
+                    }
+                talos_machine_secrets.this: '{}'
+        argumentDocs:
+            ca_certificate: (String) The client CA certificate.
+            client_certificate: (String) The client certificate.
+            client_configuration: (Attributes) The Talos client configuration. Use client_configuration_wo when using ephemeral resources. (see below for nested schema)
+            client_configuration_wo: (Attributes, Write-only) Write-only variant of client_configuration for use with ephemeral resources. Requires Terraform 1.11+. (see below for nested schema)
+            client_key: (String, Sensitive) The client key.
+            control_plane_nodes: (List of String) List of all control plane node IPs used for etcd health checks. Defaults to [node]. Required for HA clusters where all control plane IPs must be listed.
+            create: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+            endpoint: (String) The endpoint to use when connecting to the node. Defaults to node.
+            id: (String) The ID of this resource.
+            kubernetes_version: '(String) Desired Kubernetes version (e.g. v1.32.0). This is the canonical driver for Kubernetes upgrades: changing it runs Talos''s upgrade-k8s procedure, which sequentially upgrades kube-apiserver, kube-controller-manager, kube-scheduler, kube-proxy, and kubelet on each node with health gating. Set ignore_kubernetes_upgrade_drift = true on talos_machine so that image tag changes owned by upgrade-k8s are excluded from drift detection and talos_cluster fully owns the upgrade sequencing.'
+            node: '(String) The IP address of the control plane node to bootstrap etcd on. Must be an IP: it defaults into control_plane_nodes, which the health checks compare against the addresses Kubernetes reports. Use endpoint to connect through a hostname.'
+            timeouts: (Attributes) (see below for nested schema)
+            update: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+        importStatements: []
+    talos_cluster_kubeconfig:
+        subCategory: ""
+        description: Retrieves the kubeconfig for a Talos cluster
+        name: talos_cluster_kubeconfig
+        title: talos_cluster_kubeconfig Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                  "depends_on": [
+                    "${talos_machine_bootstrap.this}"
+                  ],
+                  "node": "10.5.0.2"
+                }
+              references:
+                client_configuration: talos_machine_secrets.this.client_configuration
+              dependencies:
+                talos_machine_bootstrap.this: |-
+                    {
+                      "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                      "depends_on": [
+                        "${talos_machine_configuration_apply.this}"
+                      ],
+                      "node": "10.5.0.2"
+                    }
+                talos_machine_configuration_apply.this: |-
+                    {
+                      "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                      "config_patches": [
+                        "${yamlencode({\n      machine = {\n        install = {\n          disk = \"/dev/sdd\"\n        }\n      }\n    })}"
+                      ],
+                      "machine_configuration_input": "${data.talos_machine_configuration.this.machine_configuration}",
+                      "node": "10.5.0.2"
+                    }
+                talos_machine_secrets.this: '{}'
+        argumentDocs:
+            ca_certificate: (String) The client CA certificate
+            certificate_renewal_duration: (String) The duration in hours before the certificate is renewed, defaults to 720h. Must be a valid duration string
+            client_certificate: (String) The client certificate
+            client_configuration: (Attributes) The client configuration data (see below for nested schema)
+            client_key: (String, Sensitive) The client key
+            create: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+            endpoint: (String) endpoint to use for the talosclient. If not set, the node value will be used
+            host: (String) The kubernetes host
+            id: (String) The ID of this resource.
+            kubeconfig_raw: (String, Sensitive) The raw kubeconfig
+            kubernetes_client_configuration: (Attributes) The kubernetes client configuration (see below for nested schema)
+            node: (String) controlplane node to retrieve the kubeconfig from
+            timeouts: (Attributes) (see below for nested schema)
+            update: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+        importStatements: []
+    talos_image_factory_schematic:
+        subCategory: ""
+        description: The image factory schematic resource allows you to create a schematic for a Talos image.
+        name: talos_image_factory_schematic
+        title: talos_image_factory_schematic Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "schematic": "${yamlencode(\n    {\n      customization = {\n        systemExtensions = {\n          officialExtensions = data.talos_image_factory_extensions_versions.this.extensions_info.*.name\n        }\n      }\n    }\n  )}"
+                }
+        argumentDocs:
+            id: (String) The unique ID of the schematic, returned from Image Factory.
+            schematic: (String) The schematic yaml respresentation to generate the image.
+        importStatements: []
+    talos_machine:
+        subCategory: ""
+        description: 'Manages a Talos node: applies machine configuration and keeps the Talos OS version in sync.'
+        name: talos_machine
+        title: talos_machine Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                  "image": "ghcr.io/siderolabs/installer:v1.9.0",
+                  "machine_configuration": "${data.talos_machine_configuration.this.machine_configuration}",
+                  "node": "10.5.0.2"
+                }
+              references:
+                client_configuration: talos_machine_secrets.this.client_configuration
+                machine_configuration: data.talos_machine_configuration.this.machine_configuration
+              dependencies:
+                talos_machine_bootstrap.this: |-
+                    {
+                      "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                      "depends_on": [
+                        "${talos_machine.this}"
+                      ],
+                      "node": "10.5.0.2"
+                    }
+                talos_machine_secrets.this: '{}'
+            - name: this
+              manifest: |-
+                {
+                  "image": "ghcr.io/siderolabs/installer:v1.11.0"
+                }
+            - name: worker
+              manifest: |-
+                {
+                  "drain_on_upgrade": true,
+                  "kubeconfig_wo": "${ephemeral.talos_cluster_kubeconfig.this.kubeconfig_raw}"
+                }
+              references:
+                kubeconfig_wo: ephemeral.talos_cluster_kubeconfig.this.kubeconfig_raw
+            - name: cp0
+              manifest: |-
+                {
+                  "drain_on_upgrade": true,
+                  "image": "ghcr.io/siderolabs/installer:v1.10.0",
+                  "node": "10.5.0.1"
+                }
+            - name: cp1
+              manifest: |-
+                {
+                  "depends_on": [
+                    "${talos_machine.cp0}"
+                  ],
+                  "drain_on_upgrade": true,
+                  "image": "ghcr.io/siderolabs/installer:v1.10.0",
+                  "node": "10.5.0.2"
+                }
+            - name: cp2
+              manifest: |-
+                {
+                  "depends_on": [
+                    "${talos_machine.cp1}"
+                  ],
+                  "drain_on_upgrade": true,
+                  "image": "ghcr.io/siderolabs/installer:v1.10.0",
+                  "node": "10.5.0.3"
+                }
+        argumentDocs:
+            ca_certificate: (String) The client CA certificate.
+            client_certificate: (String) The client certificate.
+            client_configuration: (Attributes) The Talos client configuration. Use client_configuration_wo when using ephemeral resources. (see below for nested schema)
+            client_configuration_wo: (Attributes, Write-only) Write-only variant of client_configuration for use with ephemeral resources. Requires Terraform 1.11+. (see below for nested schema)
+            client_key: (String, Sensitive) The client key.
+            create: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+            delete: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.
+            drain_on_upgrade: (Boolean) Drain the node before rebooting during an upgrade, then uncordon after. Requires a healthy Kubernetes cluster. Use depends_on to sequence upgrades across nodes.
+            endpoint: (String) The endpoint to use when connecting to the node. Defaults to node.
+            graceful: (Boolean) Graceful indicates whether node should leave etcd before the reset.
+            id: (String) The ID of this resource.
+            ignore_kubernetes_upgrade_drift: '(Boolean) Experimental: when true, talos_machine ignores Kubernetes component image tag changes owned by talos_cluster/upgrade-k8s, preventing drift detection from interfering with graceful Kubernetes upgrades. Safe to use — enabling or disabling causes at most a one-time apply to refresh the config hash. Cannot be guaranteed to work with all future Talos versions: if upgrade-k8s manages additional image fields in a future release, this attribute must be updated to match.'
+            image: (String) Talos installer image (e.g. ghcr.io/siderolabs/installer:v1.9.0). When set, upgrades if running version differs. When omitted, OS version is not managed.
+            kubeconfig: (String, Sensitive) Kubeconfig used to drain and uncordon the node during upgrades. Required when drain_on_upgrade = true and image is set. Provide talos_cluster_kubeconfig.this.kubeconfig_raw. Use kubeconfig_wo when using ephemeral resources.
+            kubeconfig_wo: (String, Sensitive, Write-only) Write-only variant of kubeconfig. Requires Terraform 1.11+.
+            kubernetes_version: in talos_machine_configuration and talos_cluster.kubernetes_version can be bumped in the same terraform apply without conflict.
+            machine_configuration: (String, Sensitive) The machine configuration YAML to apply. Use machine_configuration_wo when using ephemeral resources.
+            machine_configuration_hash: (String) SHA256 hex digest of the machine configuration currently applied on the node. Changes when configuration drifts, triggering a re-apply on the next terraform apply.
+            machine_configuration_wo: (String, Write-only) Write-only variant of machine_configuration for use with ephemeral resources. Requires Terraform 1.11+.
+            node: (String) The IP address or hostname of the Talos node.
+            on_destroy: (Attributes) Actions to be taken on destroy, if reset is not set this is a no-op.
+            reboot: (Boolean) Reboot indicates whether node should reboot or halt after resetting.
+            reboot_mode: '(String) Reboot mode for OS upgrades: DEFAULT or POWERCYCLE.'
+            reset: (Boolean) Reset the machine to the initial state (STATE and EPHEMERAL will be wiped).
+            talos_machine: . Only the version tag is stripped from the hash — a registry change (e.g. switching to a private mirror) is still detected as drift.
+            timeouts: (Attributes) (see below for nested schema)
+            update: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+        importStatements: []
+    talos_machine_bootstrap:
+        subCategory: ""
+        description: The machine bootstrap resource allows you to bootstrap a Talos node.
+        name: talos_machine_bootstrap
+        title: talos_machine_bootstrap Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                  "depends_on": [
+                    "${talos_machine_configuration_apply.this}"
+                  ],
+                  "node": "10.5.0.2"
+                }
+              references:
+                client_configuration: talos_machine_secrets.this.client_configuration
+              dependencies:
+                talos_machine_configuration_apply.this: |-
+                    {
+                      "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                      "config_patches": [
+                        "${yamlencode({\n      machine = {\n        install = {\n          disk = \"/dev/sdd\"\n        }\n      }\n    })}"
+                      ],
+                      "machine_configuration_input": "${data.talos_machine_configuration.this.machine_configuration}",
+                      "node": "10.5.0.2"
+                    }
+                talos_machine_secrets.this: '{}'
+        argumentDocs:
+            ca_certificate: (String) The client CA certificate
+            client_certificate: (String) The client certificate
+            client_configuration: (Attributes) The client configuration data (see below for nested schema)
+            client_configuration_wo: (Attributes, Write-only) The client configuration data (write-only). Use this instead of client_configuration when using ephemeral resources. Requires Terraform 1.11+ (see below for nested schema)
+            client_key: (String, Sensitive) The client key
+            create: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+            endpoint: (String) The endpoint of the machine to bootstrap
+            id: (String) This is a unique identifier for the machine
+            node: (String) The name of the node to bootstrap
+            timeouts: (Attributes) (see below for nested schema)
+        importStatements: []
+    talos_machine_configuration_apply:
+        subCategory: ""
+        description: The machine configuration apply resource allows to apply machine configuration to a node
+        name: talos_machine_configuration_apply
+        title: talos_machine_configuration_apply Resource - talos
+        examples:
+            - name: this
+              manifest: |-
+                {
+                  "client_configuration": "${talos_machine_secrets.this.client_configuration}",
+                  "config_patches": [
+                    "${yamlencode({\n      machine = {\n        install = {\n          disk  = \"/dev/sdd\"\n          image = \"ghcr.io/siderolabs/installer:v1.12.6\"\n        }\n      }\n    })}"
+                  ],
+                  "machine_configuration_input": "${data.talos_machine_configuration.this.machine_configuration}",
+                  "node": "10.5.0.2"
+                }
+              references:
+                client_configuration: talos_machine_secrets.this.client_configuration
+                machine_configuration_input: data.talos_machine_configuration.this.machine_configuration
+              dependencies:
+                talos_machine_secrets.this: '{}'
+        argumentDocs:
+            apply_mode: '(String) The mode of the apply operation. Use ''staged_if_needing_reboot'' for automatic reboot prevention: performs a dry-run and uses ''staged'' mode if reboot is needed, ''auto'' otherwise'
+            ca_certificate: (String) The client CA certificate
+            client_certificate: (String) The client certificate
+            client_configuration: (Attributes) The client configuration data (see below for nested schema)
+            client_configuration_wo: (Attributes, Write-only) The client configuration data (write-only). Use this instead of client_configuration when using ephemeral resources. Requires Terraform 1.11+ (see below for nested schema)
+            client_key: (String, Sensitive) The client key
+            config_patches: (List of String) The list of config patches to apply
+            create: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+            delete: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours). Setting a timeout for a Delete operation is only applicable if changes are saved into state before the destroy operation occurs.
+            endpoint: (String) The endpoint of the machine to bootstrap
+            graceful: (Boolean) Graceful indicates whether node should leave etcd before the upgrade, it also enforces etcd checks before leaving. Default true
+            id: (String) This is a unique identifier for the machine
+            machine_configuration: (String, Sensitive) The generated machine configuration after applying patches
+            machine_configuration_hash: (String) SHA256 hex digest of the rendered machine configuration (input plus patches). Persisted in state so that changes to machine_configuration_input_wo — which is write-only and itself invisible to state — still surface as plan diffs.
+            machine_configuration_input: (String, Sensitive) The machine configuration to apply
+            machine_configuration_input_wo: (String, Write-only) The machine configuration to apply (write-only). Use this instead of machine_configuration_input when using ephemeral resources. Requires Terraform 1.11+
+            node: (String) The name of the node to bootstrap
+            on_destroy: (Attributes) Actions to be taken on destroy, if reset is not set this is a no-op.
+            reboot: (Boolean) Reboot indicates whether node should reboot or halt after resetting. Default false
+            reset: (Boolean) Reset the machine to the initial state (STATE and EPHEMERAL will be wiped). Default false
+            resolved_apply_mode: (String) The actual apply mode used. When apply_mode is 'staged_if_needing_reboot', shows the resolved mode ('auto' or 'staged') based on dry-run analysis. Equals apply_mode for other modes.
+            timeouts: (Attributes) (see below for nested schema)
+            update: (String) A string that can be parsed as a duration consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+        importStatements: []
+    talos_machine_secrets:
+        subCategory: ""
+        description: Generate machine secrets for Talos cluster.
+        name: talos_machine_secrets
+        title: talos_machine_secrets Resource - talos
+        examples:
+            - name: machine_secrets
+              manifest: '{}'
+        argumentDocs:
+            aescbc_encryption_secret: (String, Sensitive) The AES-CBC encryption secret
+            bootstrap_token: (String, Sensitive) The bootstrap token
+            ca_certificate: (String) The client CA certificate
+            cert: (String) certificate data
+            certs: (Attributes) (see below for nested schema)
+            client_certificate: (String) The client certificate
+            client_configuration: (Attributes) The generated client configuration data (see below for nested schema)
+            client_key: (String, Sensitive) The client key
+            cluster: (Attributes) The cluster secrets (see below for nested schema)
+            etcd: (Attributes) The certificate and key pair (see below for nested schema)
+            id: (String) The computed ID of the Talos cluster
+            k8s: (Attributes) The certificate and key pair (see below for nested schema)
+            k8s_aggregator: (Attributes) The certificate and key pair (see below for nested schema)
+            k8s_serviceaccount: (Attributes) The service account secrets (see below for nested schema)
+            key: (String, Sensitive) key data
+            machine_secrets: (Attributes) The secrets for the talos cluster (see below for nested schema)
+            os: (Attributes) The certificate and key pair (see below for nested schema)
+            secret: (String, Sensitive) The cluster secret
+            secretbox_encryption_secret: (String, Sensitive) The secretbox encryption secret
+            secrets: (Attributes) kubernetes cluster secrets (see below for nested schema)
+            talos_version: '(String) The Talos version contract used to generate the secrets. Example values: v1.12, v1.12.1, 1.12, 1.12.1'
+            token: (String, Sensitive) The trustd token
+            trustdinfo: (Attributes) trustd secrets (see below for nested schema)
+        importStatements: []

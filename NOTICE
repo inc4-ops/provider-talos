@@ -1,0 +1,23 @@
+provider-talos
+Copyright 2026 inc4
+
+This repository is licensed under the Apache License, Version 2.0 (LICENSE).
+It is generated from crossplane/upjet-provider-template (Apache-2.0) with
+crossplane/upjet (Apache-2.0).
+
+The provider binary and image also contain the following unmodified
+third-party Go modules under the Mozilla Public License 2.0. Their Source Code
+Form is available at the listed tags; no file of them is modified here
+(internal/tfwrap wraps them from separate files).
+
+  github.com/siderolabs/terraform-provider-talos v0.12.0  https://github.com/siderolabs/terraform-provider-talos/tree/v0.12.0
+  github.com/siderolabs/talos/pkg/machinery v1.14.0       https://github.com/siderolabs/talos/tree/v1.14.0/pkg/machinery
+  github.com/siderolabs/talos v1.14.0                     https://github.com/siderolabs/talos/tree/v1.14.0
+  github.com/siderolabs/image-factory v1.6.0              https://github.com/siderolabs/image-factory/tree/v1.6.0
+  github.com/hashicorp/terraform-plugin-framework v1.19.0 https://github.com/hashicorp/terraform-plugin-framework/tree/v1.19.0
+  github.com/hashicorp/terraform-plugin-go v0.31.0        https://github.com/hashicorp/terraform-plugin-go/tree/v0.31.0
+  github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1    https://github.com/hashicorp/terraform-plugin-sdk/tree/v2.40.1
+
+`go version -m` on the binary lists every embedded module and version.
+Terraform itself is not included: Terraform 1.5.7 (MPL-2.0) is used only at
+development time to dump the provider schema into config/schema.json.

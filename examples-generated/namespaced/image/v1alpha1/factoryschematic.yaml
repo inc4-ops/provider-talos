@@ -1,0 +1,21 @@
+apiVersion: image.talos.m.inc4.net/v1alpha1
+kind: FactorySchematic
+metadata:
+  annotations:
+    meta.upbound.io/example-id: image/v1alpha1/factoryschematic
+  labels:
+    testing.upbound.io/example-name: this
+  name: this
+  namespace: default
+spec:
+  forProvider:
+    schematic: |-
+      ${yamlencode(
+          {
+            customization = {
+              systemExtensions = {
+                officialExtensions = data.talos_image_factory_extensions_versions.this.extensions_info.*.name
+              }
+            }
+          }
+        )}

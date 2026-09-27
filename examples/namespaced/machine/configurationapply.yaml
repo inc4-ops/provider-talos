@@ -1,0 +1,24 @@
+# Secret talos-e2e-talosconfig: keys ca_certificate / client_certificate / client_key, the base64 values of
+#   contexts.<ctx>.ca / .crt / .key from the talosconfig written by `talosctl gen config --with-secrets`.
+# Secret talos-e2e-base: key controlplane.yaml = the generated base config (holds every CA key).
+apiVersion: machine.talos.m.inc4.net/v1alpha1
+kind: ConfigurationApply
+metadata:
+  name: talos-e2e-cp-0
+  namespace: talos-e2e
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ProviderConfig, name: talos}
+  forProvider:
+    node: ${NODE_IP}
+    clientConfiguration:
+      caCertificateSecretRef: {name: talos-e2e-talosconfig, key: ca_certificate}
+      clientCertificateSecretRef: {name: talos-e2e-talosconfig, key: client_certificate}
+      clientKeySecretRef: {name: talos-e2e-talosconfig, key: client_key}
+    machineConfigurationInputSecretRef: {name: talos-e2e-base, key: controlplane.yaml}
+    configPatches:
+      - |
+        apiVersion: v1alpha1
+        kind: HostnameConfig
+        hostname: talos-e2e-cp-0
+        auto: off

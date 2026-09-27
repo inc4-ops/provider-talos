@@ -1,0 +1,19 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-talos
+  annotations:
+    meta.crossplane.io/maintainer: inc4 platform team
+    meta.crossplane.io/source: github.com/inc4-ops/provider-talos
+    meta.crossplane.io/license: Apache-2.0
+    meta.crossplane.io/description: |
+      Talos Linux machine configuration apply, idempotent etcd bootstrap and
+      Kubernetes upgrades, admin kubeconfig, and Image Factory schematics as
+      namespaced managed resources. Generated with upjet from
+      siderolabs/terraform-provider-talos v0.12.0 (Talos SDK v1.14.0), which
+      runs in-process.
+spec:
+  crossplane:
+    version: ">=v2.4.0-0"
+  capabilities:
+    - SafeStart

@@ -1,0 +1,17 @@
+# status.atProvider.id (= external-name) is the schematic ID for
+# factory.talos.dev/image/<id>/<version>/metal-amd64.raw.zst and factory.talos.dev/metal-installer/<id>:<version>.
+apiVersion: image.talos.m.inc4.net/v1alpha1
+kind: FactorySchematic
+metadata:
+  name: gex131-nvidia
+  namespace: talos-e2e
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ProviderConfig, name: talos}
+  forProvider:
+    schematic: |
+      customization:
+        systemExtensions:
+          officialExtensions:
+            - siderolabs/nvidia-open-gpu-kernel-modules-production
+            - siderolabs/nvidia-container-toolkit-production

@@ -1,0 +1,6 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-talos
+spec:
+  package: ghcr.io/inc4-ops/provider-talos:v0.1.0

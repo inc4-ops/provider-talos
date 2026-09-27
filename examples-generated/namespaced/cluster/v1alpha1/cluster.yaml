@@ -1,0 +1,42 @@
+apiVersion: cluster.talos.m.inc4.net/v1alpha1
+kind: Cluster
+metadata:
+  annotations:
+    meta.upbound.io/example-id: cluster/v1alpha1/cluster
+  labels:
+    testing.upbound.io/example-name: this
+  name: this
+  namespace: default
+spec:
+  forProvider:
+    clientConfiguration: ${talos_machine_secrets.this.client_configuration}
+    kubernetesVersion: v1.32.0
+    node: 10.5.0.2
+
+---
+
+apiVersion: machine.talos.m.inc4.net/v1alpha1
+kind: ConfigurationApply
+metadata:
+  annotations:
+    meta.upbound.io/example-id: cluster/v1alpha1/cluster
+  labels:
+    testing.upbound.io/example-name: this
+  name: this
+  namespace: default
+spec:
+  forProvider:
+    clientConfiguration: ${talos_machine_secrets.this.client_configuration}
+    configPatches:
+    - |-
+      ${yamlencode({
+            machine = {
+              install = {
+                disk = "/dev/sda"
+              }
+            }
+          })}
+    machineConfigurationInputSecretRef:
+      key: attribute.this.machine_configuration
+      name: example-
+    node: 10.5.0.2

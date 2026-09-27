@@ -1,0 +1,9 @@
+# No credentials: every MR carries its own Talos client configuration as secret refs.
+apiVersion: talos.m.inc4.net/v1beta1
+kind: ProviderConfig
+metadata:
+  name: talos
+  namespace: talos-e2e
+spec: {}
+# spec:
+#   imageFactoryURL: https://factory.talos.dev

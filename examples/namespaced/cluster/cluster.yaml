@@ -1,0 +1,19 @@
+apiVersion: cluster.talos.m.inc4.net/v1alpha1
+kind: Cluster
+metadata:
+  name: talos-e2e
+  namespace: talos-e2e
+spec:
+  managementPolicies: [Observe, Create, Update]
+  providerConfigRef: {kind: ProviderConfig, name: talos}
+  forProvider:
+    node: ${NODE_IP}
+    endpoint: ${NODE_IP}
+    controlPlaneNodes: [${NODE_IP}]
+    kubernetesVersion: v${K8S_VERSION}   # docs format; talosctl gen config takes it without the v
+    clientConfiguration:
+      caCertificateSecretRef: {name: talos-e2e-talosconfig, key: ca_certificate}
+      clientCertificateSecretRef: {name: talos-e2e-talosconfig, key: client_certificate}
+      clientKeySecretRef: {name: talos-e2e-talosconfig, key: client_key}
+    timeouts:
+      create: 30m

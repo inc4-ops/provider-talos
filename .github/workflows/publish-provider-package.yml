@@ -1,0 +1,27 @@
+name: Publish Provider Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, equal to an existing tag (e.g. v0.1.0)"
+        required: true
+
+# The called workflow logs in to ghcr.io with the token passed as GHCR_PAT; a
+# reusable workflow cannot hold more than the caller grants.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-provider-package:
+    uses: crossplane-contrib/provider-workflows/.github/workflows/publish-provider.yml@451c4dc6ad3691b0a702a997a0ac24e8bbc8bbaa # main 2026-02-25
+    with:
+      repository: provider-talos
+      version: ${{ inputs.version }}
+      go-version: "1.26.8"
+      registry_org: inc4-ops      # -> ghcr.io/inc4-ops/provider-talos:<version>
+      mirror: false               # no xpkg.upbound.io mirror
+      cleanup-disk: true
+    secrets:
+      GHCR_PAT: ${{ secrets.GITHUB_TOKEN }}
