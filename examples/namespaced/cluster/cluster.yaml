@@ -9,7 +9,7 @@ spec:
   forProvider:
     node: ${NODE_IP}
     endpoint: ${NODE_IP}
-    controlPlaneNodes: [${NODE_IP}]
+    controlPlaneNodes: ["${NODE_IP}"]   # quoted: an unquoted ${...} is invalid YAML inside a flow sequence
     kubernetesVersion: v${K8S_VERSION}   # docs format; talosctl gen config takes it without the v
     clientConfiguration:
       caCertificateSecretRef: {name: talos-e2e-talosconfig, key: ca_certificate}

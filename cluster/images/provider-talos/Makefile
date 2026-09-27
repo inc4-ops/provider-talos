@@ -14,7 +14,18 @@ include ../../../build/makelib/imagelight.mk
 img.build:
 	@$(INFO) docker build $(IMAGE)
 	@$(MAKE) BUILD_ARGS="--load" img.build.shared
+	@$(MAKE) img.unpack
 	@$(OK) docker build $(IMAGE)
+
+# A daemon on the containerd image store (colima, current Docker Desktop) does not
+# unpack a loaded image of a foreign platform, so `docker history` fails with
+# "snapshot ... does not exist", and so does `crossplane xpkg build
+# --embed-runtime-image`, which reads the image config through that API. Creating
+# (never starting) a container of the image's platform unpacks it. It is a no-op
+# for the native platform, e.g. linux_amd64 on the amd64 CI runners.
+img.unpack:
+	@cid=$$(docker create --platform $(IMAGE_PLATFORMS) $(IMAGE)) || $(FAIL); \
+		docker rm $$cid >/dev/null || $(FAIL)
 
 img.publish:
 	@$(INFO) Skipping image publish for $(IMAGE)

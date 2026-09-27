@@ -1,5 +1,6 @@
-# status.atProvider.id (= external-name) is the schematic ID for
+# status.atProvider.id is the schematic ID for
 # factory.talos.dev/image/<id>/<version>/metal-amd64.raw.zst and factory.talos.dev/metal-installer/<id>:<version>.
+# The provider records the same ID as the external name; never set that annotation yourself.
 apiVersion: image.talos.m.inc4.net/v1alpha1
 kind: FactorySchematic
 metadata:

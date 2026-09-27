@@ -1,3 +1,5 @@
+# Local try-out only. Consumers (inc4-platform) pin the published index digest,
+# ghcr.io/inc4-ops/provider-talos@sha256:<index digest>, never the tag.
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
