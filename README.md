@@ -175,10 +175,20 @@ make e2e                             # fresh kind cluster, Crossplane 2.4.0, thi
 ```
 
 `make e2e` needs docker (about 4 GB of memory) and jq; kubectl, talosctl and yq
-are pinned downloads. It recreates the kind cluster, builds and deploys the
+are pinned downloads. It deletes and recreates its own kind cluster,
+`provider-talos-e2e`, keeps its kubeconfig in `.work/e2e/kubeconfig` (it never
+changes the current context of `~/.kube/config`), builds and deploys the
 provider, and runs `cluster/test/talos-e2e.sh`: insecure first apply, bootstrap,
 kubeconfig Secret keys, and no Update call after a provider restart. `make
-e2e-talos` runs the script against a running `make local-deploy`.
+e2e-talos` runs the script against a running `make local-deploy`, whose kind
+cluster is `provider-talos` (the build submodule's shared default, `local-dev`,
+is not used). `make e2e.dump` dumps the e2e control plane.
+
+The Talos container needs a Docker host kernel whose overlayfs accepts layers as
+file descriptors (`lowerdir+` through `FSCONFIG_SET_FD`). colima's default
+Ubuntu 24.04 VM (kernel 6.8) does not: Talos aborts with `failed to set up /etc
+overlay` and the script stops at the apid wait with that hint. The e2e-talos CI
+job on the ubuntu-24.04 runners (kernel 6.17) is where it is meant to run.
 
 Bumping terraform-provider-talos: change go.mod and `TERRAFORM_PROVIDER_VERSION`
 in the Makefile together (`make check-tf-provider-version` enforces it; Renovate

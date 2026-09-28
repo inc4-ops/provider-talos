@@ -305,9 +305,10 @@ jobs:
       - name: Talos node e2e (kind + Crossplane + provider + Talos container)
         run: make e2e
 
+      # make e2e keeps its kind cluster in its own kubeconfig; e2e.dump reads the same one.
       - name: Dump control plane on failure
         if: failure()
-        run: make controlplane.dump
+        run: make e2e.dump
 
   # report-breaking-changes is not a need: it only reports, and it is skipped outside
   # pull requests, which would skip this job too.

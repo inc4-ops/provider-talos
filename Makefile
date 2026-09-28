@@ -197,6 +197,9 @@ run: go.build
 # ====================================================================================
 # End to End Testing
 CROSSPLANE_NAMESPACE = crossplane-system
+# The build submodule defaults to local-dev, a name every crossplane repo shares; a
+# repo-unique name keeps `make local-deploy` and `make e2e` off other repos' clusters.
+KIND_CLUSTER_NAME ?= $(PROJECT_NAME)
 -include build/makelib/local.xpkg.mk
 -include build/makelib/controlplane.mk
 
@@ -207,11 +210,17 @@ local-deploy: build controlplane.up local.xpkg.deploy.provider.$(PROJECT_NAME)
 	@$(OK) running locally built provider
 
 # Live e2e against a real Talos node: a Talos container in maintenance mode on the
-# kind docker network (cluster/test/talos-e2e.sh). `make e2e` recreates the kind
-# cluster, builds and deploys the provider, then runs the script; `make e2e-talos`
-# runs the script against a running `make local-deploy`. The host needs docker and
-# jq; kubectl, talosctl and yq are pinned downloads. The script only ever talks to
-# the kind-$(KIND_CLUSTER_NAME) context. Budget about 4 GB of docker memory.
+# kind docker network (cluster/test/talos-e2e.sh). `make e2e` builds and deploys the
+# provider into a fresh kind cluster of its own and runs the script; `make e2e-talos`
+# runs the script against a running `make local-deploy`. The host needs docker and jq;
+# kubectl, talosctl and yq are pinned downloads. The script only ever talks to the
+# kind-$(KIND_CLUSTER_NAME) context. Budget about 4 GB of docker memory.
+#
+# The Talos v1.14 container passes overlayfs layers to the kernel as file descriptors
+# (lowerdir+ through FSCONFIG_SET_FD), so it only boots on a Docker host kernel with
+# that support. colima's default Ubuntu 24.04 VM (kernel 6.8) lacks it: Talos aborts
+# with "failed to set up /etc overlay" and apid never listens. The ubuntu-24.04 GitHub
+# runners (kernel 6.17) are where the e2e is expected to run.
 TALOS_VERSION ?= v1.14.1
 K8S_VERSION ?= 1.36.5
 TALOSCTL := $(TOOLS_HOST_DIR)/talosctl-$(TALOS_VERSION)
@@ -231,19 +240,36 @@ e2e-talos: $(KUBECTL) $(TALOSCTL) $(YQ)
 		./cluster/test/talos-e2e.sh || $(FAIL)
 	@$(OK) running Talos e2e
 
+# `make e2e` runs in a kind cluster and a kubeconfig of its own: it deletes and recreates
+# kind-$(E2E_KIND_CLUSTER_NAME), and kind, helm and kubectl read and write only
+# $(E2E_KUBECONFIG), so it never switches the current context of ~/.kube/config.
+E2E_KIND_CLUSTER_NAME ?= $(PROJECT_NAME)-e2e
+E2E_KUBECONFIG ?= $(WORK_DIR)/e2e/kubeconfig
+E2E_ENV = KUBECONFIG=$(E2E_KUBECONFIG)
+E2E_VARS = KIND_CLUSTER_NAME=$(E2E_KIND_CLUSTER_NAME)
+
 # build/makelib runs `make e2e` as the sub-makes e2e.init, e2e.run and e2e.done in
 # order, so the provider is deployed before the e2e starts, even under make -j.
 e2e.init: e2e.deploy
-e2e.run: e2e-talos
+e2e.run: e2e.talos
 
 # A fresh kind cluster, as build/makelib/uptest.mk does for its e2e: local.xpkg.deploy
 # reuses a fixed package digest and image tag, so a provider already installed in a
 # reused cluster keeps its old CRDs and keeps running its old image.
 e2e.deploy:
-	@$(MAKE) controlplane.down
-	@$(MAKE) local-deploy
+	@mkdir -p $(dir $(E2E_KUBECONFIG)) || $(FAIL)
+	@$(E2E_ENV) $(MAKE) $(E2E_VARS) controlplane.down
+	@$(E2E_ENV) $(MAKE) $(E2E_VARS) local-deploy
 
-.PHONY: e2e-talos e2e.deploy
+e2e.talos:
+	@$(E2E_ENV) $(MAKE) $(E2E_VARS) e2e-talos
+
+# Dumps the `make e2e` control plane to $(OUTPUT_DIR)/controlplane-dump (CI runs it when
+# the e2e fails).
+e2e.dump:
+	@$(E2E_ENV) $(MAKE) $(E2E_VARS) controlplane.dump
+
+.PHONY: e2e-talos e2e.deploy e2e.talos e2e.dump
 
 # Reports only; it never fails. crossplane/uptest has no cmd/crddiff (checked v0.12.0 to
 # v2.2.0) and no v0.12.1 tag, so run it from the upbound/uptest module, as the

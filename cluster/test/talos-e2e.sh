@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Live e2e for provider-talos against a real Talos node.
 #
-# Runs against the kind cluster of `make local-deploy` (kind, Crossplane and this provider
-# built from source). `make e2e` recreates that cluster, deploys and runs this script;
-# `make e2e-talos` runs it against the running one. One Talos container boots in
-# maintenance mode on the kind docker network, so the provider pod dials apid :50000 on the
-# container IP directly, as it dials a fresh Hetzner node over the private network.
+# Runs against a kind cluster with Crossplane and this provider built from source.
+# `make e2e` creates a fresh one of its own (kind-provider-talos-e2e, in its own
+# kubeconfig), deploys and runs this script; `make e2e-talos` runs it against the running
+# `make local-deploy` cluster. One Talos container boots in maintenance mode on the kind
+# docker network, so the provider pod dials apid :50000 on the container IP directly, as
+# it dials a fresh Hetzner node over the private network.
 #
 # Covers:
 #   - the insecure first apply of ConfigurationApply to a maintenance-mode node;
@@ -17,8 +18,9 @@
 #     connection Secret.
 #
 # Every kubectl call is pinned to the kind context (kind-$KIND_CLUSTER_NAME), never the
-# current context. Host requirements: docker and jq. KUBECTL, TALOSCTL and YQ (mikefarah
-# yq v4) come from the Makefile as pinned downloads.
+# current context. Host requirements: docker and jq, and a Docker host kernel that boots
+# a Talos v1.14 container (see the Makefile: colima's default kernel 6.8 does not).
+# KUBECTL, TALOSCTL and YQ (mikefarah yq v4) come from the Makefile as pinned downloads.
 set -euo pipefail
 
 : "${KUBECTL:?set KUBECTL}" "${TALOSCTL:?set TALOSCTL}"
@@ -26,7 +28,7 @@ YQ=${YQ:-yq}
 TALOS_VERSION=${TALOS_VERSION:-v1.14.1}
 TALOS_IMAGE=${TALOS_IMAGE:-ghcr.io/siderolabs/talos:${TALOS_VERSION}}
 K8S_VERSION=${K8S_VERSION:-1.36.5}
-KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-local-dev}
+KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-provider-talos}
 KIND_NETWORK=${KIND_EXPERIMENTAL_DOCKER_NETWORK:-kind}
 PROVIDER_NS=${CROSSPLANE_NAMESPACE:-crossplane-system}
 
@@ -83,7 +85,7 @@ for tool in docker jq "$YQ" "$TALOSCTL" "$KUBECTL"; do
   command -v "$tool" >/dev/null || die "$tool not found"
 done
 "$KUBECTL" config get-contexts "$KCTX" >/dev/null 2>&1 \
-  || die "kube context $KCTX not found: run 'make local-deploy' (or 'make e2e') first"
+  || die "kube context $KCTX not found: run 'make local-deploy' first, or 'make e2e' for a self-contained run"
 docker inspect "$KIND_NODE" >/dev/null 2>&1 || die "kind node container $KIND_NODE not found"
 k wait provider.pkg.crossplane.io/provider-talos --for=condition=Healthy --timeout=5m
 diagnose=1
@@ -111,6 +113,16 @@ NODE_IP=$(docker inspect -f "{{(index .NetworkSettings.Networks \"$KIND_NETWORK\
 [ -n "$NODE_IP" ] || die "no IP for $NODE on docker network $KIND_NETWORK"
 log "node IP $NODE_IP"
 
+# Talos v1.14 hands overlayfs its layers as file descriptors; an older Docker host kernel
+# (colima's default 6.8) rejects that and Talos never starts apid. Name that cause.
+boot_hint() {
+  docker logs "$NODE" > "$WORK/talos-boot.log" 2>&1 || return 0
+  if grep -q 'FSCONFIG_SET_FD failed' "$WORK/talos-boot.log"; then
+    printf ' (Talos could not mount its overlays: Docker host kernel %s does not accept overlayfs layers by file descriptor; see the Makefile)' \
+      "$(docker info -f '{{.KernelVersion}}' 2>/dev/null)"
+  fi
+}
+
 # Probe from the kind node: the provider pod dials from there, and on macOS the container
 # IP is not reachable from the host at all.
 log "waiting for apid on $NODE_IP:50000"
@@ -120,10 +132,10 @@ for _ in $(seq 90); do
     up=1
     break
   fi
-  [ "$(docker inspect -f '{{.State.Running}}' "$NODE")" = true ] || die "the Talos container exited"
+  [ "$(docker inspect -f '{{.State.Running}}' "$NODE")" = true ] || die "the Talos container exited$(boot_hint)"
   sleep 2
 done
-[ -n "$up" ] || die "apid did not open $NODE_IP:50000 within 3 minutes"
+[ -n "$up" ] || die "apid did not open $NODE_IP:50000 within 3 minutes$(boot_hint)"
 
 # ---------------------------------------------------------------- PKI and base config
 # Generated once, outside any controller, as inc4-platform does. Throwaway: it lives in
