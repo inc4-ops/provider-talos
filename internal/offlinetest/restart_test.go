@@ -114,6 +114,94 @@ func TestApplyAfterRestart(t *testing.T) {
 	}
 }
 
+// observeRestored runs the first Observe of a fresh connector (an empty
+// operation store, as after a provider restart) on an MR of the Terraform
+// resource name, so upjet rebuilds its state from observation.
+func observeRestored(t *testing.T, name string, params, observation map[string]any, externalID string) managed.ExternalObservation {
+	t.Helper()
+	cfg := pconfig.GetProviderNamespaced().Resources[name]
+	mr := newMR(mrOpts{name: "r1", params: params, observation: observation, externalID: externalID})
+	obs, err := connect(t, newKube(), tfwrap.New(), cfg, mr).Observe(context.Background(), mr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return obs
+}
+
+func withParam(params map[string]any, key string, value any) map[string]any {
+	out := make(map[string]any, len(params))
+	for k, v := range params {
+		out[k] = v
+	}
+	out[key] = value
+	return out
+}
+
+// TestClusterAfterRestart: an Update of talos_cluster runs upgrade-k8s, so a
+// provider restart must not plan one. The rebuilt state comes from
+// status.atProvider, where endpoint and control_plane_nodes hold the values
+// ModifyPlan defaulted from node when the spec left them out. A changed
+// kubernetes_version must still plan the Update.
+func TestClusterAfterRestart(t *testing.T) {
+	cps := []any{"10.0.0.2", "10.0.0.3", "10.0.0.4"}
+	cases := map[string]struct{ params, restored map[string]any }{
+		"full spec": {
+			params: map[string]any{
+				"node": "10.0.0.2", "endpoint": "10.0.0.2", "control_plane_nodes": cps, "kubernetes_version": "v1.36.5",
+				"client_configuration": clientConfiguration, "timeouts": map[string]any{"create": "30m"},
+			},
+			restored: map[string]any{
+				"id": "10.0.0.2", "node": "10.0.0.2", "endpoint": "10.0.0.2", "control_plane_nodes": cps, "kubernetes_version": "v1.36.5",
+				"timeouts": map[string]any{"create": "30m"},
+				// sensitive parameters, which upjet restores from the spec secret refs
+				"client_configuration": clientConfiguration,
+			},
+		},
+		"minimal spec": {
+			params: map[string]any{"node": "10.0.0.2", "kubernetes_version": "v1.36.5", "client_configuration": clientConfiguration},
+			restored: map[string]any{
+				"id": "10.0.0.2", "node": "10.0.0.2", "endpoint": "10.0.0.2", "control_plane_nodes": []any{"10.0.0.2"},
+				"kubernetes_version": "v1.36.5", "client_configuration": clientConfiguration,
+			},
+		},
+	}
+	for name, c := range cases {
+		obs := observeRestored(t, "talos_cluster", c.params, c.restored, "10.0.0.2")
+		t.Logf("%s, after restart: exists=%v upToDate=%v", name, obs.ResourceExists, obs.ResourceUpToDate)
+		if !obs.ResourceExists || !obs.ResourceUpToDate {
+			t.Errorf("%s: expected exists and up to date after restart (exists=%v upToDate=%v)", name, obs.ResourceExists, obs.ResourceUpToDate)
+		}
+
+		obs = observeRestored(t, "talos_cluster", withParam(c.params, "kubernetes_version", "v1.36.6"), c.restored, "10.0.0.2")
+		t.Logf("%s, kubernetes_version raised: exists=%v upToDate=%v", name, obs.ResourceExists, obs.ResourceUpToDate)
+		if !obs.ResourceExists || obs.ResourceUpToDate {
+			t.Errorf("%s: a raised kubernetes_version must plan an Update (exists=%v upToDate=%v)", name, obs.ResourceExists, obs.ResourceUpToDate)
+		}
+	}
+}
+
+// TestFactorySchematicAfterRestart: upstream Read is a no-op, so the rebuilt
+// state is all there is; it must be up to date, and a changed schematic must
+// plan an Update.
+func TestFactorySchematicAfterRestart(t *testing.T) {
+	const id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+	schematic := "customization:\n  systemExtensions:\n    officialExtensions:\n      - siderolabs/nvidia-open-gpu-kernel-modules-production\n"
+	params := map[string]any{"schematic": schematic}
+	restored := map[string]any{"id": id, "schematic": schematic}
+
+	obs := observeRestored(t, "talos_image_factory_schematic", params, restored, id)
+	t.Logf("after restart: exists=%v upToDate=%v", obs.ResourceExists, obs.ResourceUpToDate)
+	if !obs.ResourceExists || !obs.ResourceUpToDate {
+		t.Fatalf("expected exists and up to date after restart (exists=%v upToDate=%v)", obs.ResourceExists, obs.ResourceUpToDate)
+	}
+
+	obs = observeRestored(t, "talos_image_factory_schematic", withParam(params, "schematic", "customization: {}\n"), restored, id)
+	t.Logf("changed schematic: exists=%v upToDate=%v", obs.ResourceExists, obs.ResourceUpToDate)
+	if !obs.ResourceExists || obs.ResourceUpToDate {
+		t.Fatalf("a changed schematic must plan an Update (exists=%v upToDate=%v)", obs.ResourceExists, obs.ResourceUpToDate)
+	}
+}
+
 func selfSigned(t *testing.T, notAfter time.Time) string {
 	t.Helper()
 	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

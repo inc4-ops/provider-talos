@@ -113,7 +113,9 @@ func connect(t *testing.T, kube client.Client, fw fwprovider.Provider, cfg *ujco
 // TestFreshMRsAreAbsent checks the first Observe of a brand-new MR of every
 // kind: with the id-based IsStateEmptyFn it must report "absent" without an
 // error, so upjet calls Create. Without it, upstream Reads that echo the
-// prior state make the Observe fail or report a phantom resource.
+// prior state make the Observe fail or report a phantom resource; the test
+// asserts that control case too, so an upstream change that makes the
+// function unnecessary shows up here instead of going unnoticed.
 func TestFreshMRsAreAbsent(t *testing.T) {
 	cases := map[string]map[string]any{
 		"talos_machine_configuration_apply": {"node": "10.0.0.2", "machine_configuration_input": baseConfig(t), "client_configuration": clientConfiguration},
@@ -133,8 +135,11 @@ func TestFreshMRsAreAbsent(t *testing.T) {
 			mr := newMR(mrOpts{name: "fresh", params: params})
 			o, err := connect(t, newKube(), tfwrap.New(), cfg, mr).Observe(context.Background(), mr)
 			t.Logf("%-34s isStateEmptyFn=%-5v exists=%v err=%v", name, withFn, o.ResourceExists, err)
-			if withFn && (err != nil || o.ResourceExists) {
+			switch {
+			case withFn && (err != nil || o.ResourceExists):
 				t.Fatalf("%s: expected absent without error, got exists=%v err=%v", name, o.ResourceExists, err)
+			case !withFn && err == nil && !o.ResourceExists:
+				t.Errorf("%s: without IsStateEmptyFn the first Observe now reports absent without an error: upstream changed, re-check whether the function is still needed", name)
 			}
 		}
 	}
