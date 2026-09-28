@@ -171,8 +171,14 @@ make test                            # config invariants, tfwrap and offline con
 make lint                            # golangci-lint, version pinned in the Makefile
 make notice.check                    # NOTICE names every MPL-2.0 module in the binaries
 make build                           # image and xpkg for linux on the host CPU architecture
+make build TARGETARCH=amd64          # linux_amd64 image and xpkg on an arm64 host (PLATFORMS alone is ignored on a Mac)
 make e2e                             # fresh kind cluster, Crossplane 2.4.0, this provider, a Talos v1.14.1 container
 ```
+
+A cross-architecture build loads a foreign-platform image, which a Docker daemon
+on the containerd image store (colima, current Docker Desktop) does not unpack;
+`crossplane xpkg build` then cannot read it. The image Makefile's `img.unpack`
+step creates (never starts) one container of that platform to unpack it.
 
 `make e2e` needs docker (about 4 GB of memory) and jq; kubectl, talosctl and yq
 are pinned downloads. It deletes and recreates its own kind cluster,
