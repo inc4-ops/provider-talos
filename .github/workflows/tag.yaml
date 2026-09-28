@@ -1,7 +1,13 @@
 name: Tag
 
+# Creates an annotated release tag on the current main commit. Tagging over SSH
+# (`git tag -a v0.1.0 -m ... && git push origin v0.1.0`) is equivalent. The v* tag
+# ruleset forbids moving or deleting a tag once it exists. crossplane-contrib's
+# tag.yml at 451c4dc is not a reusable workflow (no workflow_call trigger), so the
+# step is inlined here.
+
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
     inputs:
       version:
         description: 'Release version (e.g. v0.1.0)'
@@ -10,9 +16,35 @@ on:
         description: 'Tag message'
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   tag:
-    uses: crossplane-contrib/provider-workflows/.github/workflows/tag.yml@451c4dc6ad3691b0a702a997a0ac24e8bbc8bbaa # main
-    with:
-      version: ${{ github.event.inputs.version }}
-      message: ${{ github.event.inputs.message }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check inputs and ref
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version ${VERSION} is not vMAJOR.MINOR.PATCH[-PRERELEASE]"
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::tag from main, not ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create and push the tag
+        env:
+          VERSION: ${{ inputs.version }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "${MESSAGE}"
+          git push origin "refs/tags/${VERSION}"

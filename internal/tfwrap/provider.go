@@ -26,7 +26,7 @@ func New() provider.Provider {
 // Resources returns the upstream constructors, wrapping the apply resource.
 func (p *wrappedProvider) Resources(ctx context.Context) []func() resource.Resource {
 	var md provider.MetadataResponse
-	p.Provider.Metadata(ctx, provider.MetadataRequest{}, &md)
+	p.Metadata(ctx, provider.MetadataRequest{}, &md)
 	up := p.Provider.Resources(ctx)
 	out := make([]func() resource.Resource, 0, len(up))
 	for _, f := range up {

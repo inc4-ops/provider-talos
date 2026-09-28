@@ -2,22 +2,62 @@ provider-talos
 Copyright 2026 inc4
 
 This repository is licensed under the Apache License, Version 2.0 (LICENSE).
-It is generated from crossplane/upjet-provider-template (Apache-2.0) with
+It was generated from crossplane/upjet-provider-template (Apache-2.0) with
 crossplane/upjet (Apache-2.0).
 
-The provider binary and image also contain the following unmodified
-third-party Go modules under the Mozilla Public License 2.0. Their Source Code
-Form is available at the listed tags; no file of them is modified here
-(internal/tfwrap wraps them from separate files).
+Third-party code under the Mozilla Public License 2.0
+-----------------------------------------------------
 
-  github.com/siderolabs/terraform-provider-talos v0.12.0  https://github.com/siderolabs/terraform-provider-talos/tree/v0.12.0
-  github.com/siderolabs/talos/pkg/machinery v1.14.0       https://github.com/siderolabs/talos/tree/v1.14.0/pkg/machinery
-  github.com/siderolabs/talos v1.14.0                     https://github.com/siderolabs/talos/tree/v1.14.0
-  github.com/siderolabs/image-factory v1.6.0              https://github.com/siderolabs/image-factory/tree/v1.6.0
-  github.com/hashicorp/terraform-plugin-framework v1.19.0 https://github.com/hashicorp/terraform-plugin-framework/tree/v1.19.0
-  github.com/hashicorp/terraform-plugin-go v0.31.0        https://github.com/hashicorp/terraform-plugin-go/tree/v0.31.0
-  github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1    https://github.com/hashicorp/terraform-plugin-sdk/tree/v2.40.1
+The provider binary, and the image and Crossplane package that carry it,
+contain the Go modules below, which are licensed under the Mozilla Public
+License, Version 2.0 (https://mozilla.org/MPL/2.0/). They are compiled in
+unmodified: no file of them is changed or copied into this repository, and
+internal/tfwrap wraps terraform-provider-talos from separate files. The Source
+Code Form of each module is available at the listed tag or commit, and the
+exact module contents at https://proxy.golang.org/<module>/@v/<version>.zip.
 
-`go version -m` on the binary lists every embedded module and version.
-Terraform itself is not included: Terraform 1.5.7 (MPL-2.0) is used only at
-development time to dump the provider schema into config/schema.json.
+  github.com/cosi-project/runtime v1.16.3                                    https://github.com/cosi-project/runtime/tree/v1.16.3
+  github.com/hashicorp/errwrap v1.1.0                                        https://github.com/hashicorp/errwrap/tree/v1.1.0
+  github.com/hashicorp/go-multierror v1.1.1                                  https://github.com/hashicorp/go-multierror/tree/v1.1.1
+  github.com/hashicorp/go-plugin v1.7.0                                      https://github.com/hashicorp/go-plugin/tree/v1.7.0
+  github.com/hashicorp/go-uuid v1.0.3                                        https://github.com/hashicorp/go-uuid/tree/v1.0.3
+  github.com/hashicorp/go-version v1.9.0                                     https://github.com/hashicorp/go-version/tree/v1.9.0
+  github.com/hashicorp/hcl/v2 v2.24.0                                        https://github.com/hashicorp/hcl/tree/v2.24.0
+  github.com/hashicorp/logutils v1.0.0                                       https://github.com/hashicorp/logutils/tree/v1.0.0
+  github.com/hashicorp/terraform-json v0.27.3-0.20260213134036-298b8f6b673a  https://github.com/hashicorp/terraform-json/tree/298b8f6b673a
+  github.com/hashicorp/terraform-plugin-framework v1.19.0                    https://github.com/hashicorp/terraform-plugin-framework/tree/v1.19.0
+  github.com/hashicorp/terraform-plugin-framework-timeouts v0.7.0            https://github.com/hashicorp/terraform-plugin-framework-timeouts/tree/v0.7.0
+  github.com/hashicorp/terraform-plugin-framework-validators v0.19.0         https://github.com/hashicorp/terraform-plugin-framework-validators/tree/v0.19.0
+  github.com/hashicorp/terraform-plugin-go v0.31.0                           https://github.com/hashicorp/terraform-plugin-go/tree/v0.31.0
+  github.com/hashicorp/terraform-plugin-log v0.10.0                          https://github.com/hashicorp/terraform-plugin-log/tree/v0.10.0
+  github.com/hashicorp/terraform-plugin-sdk/v2 v2.40.1                       https://github.com/hashicorp/terraform-plugin-sdk/tree/v2.40.1
+  github.com/hashicorp/terraform-registry-address v0.4.0                     https://github.com/hashicorp/terraform-registry-address/tree/v0.4.0
+  github.com/hashicorp/terraform-svchost v0.2.1                              https://github.com/hashicorp/terraform-svchost/tree/v0.2.1
+  github.com/hashicorp/yamux v0.1.2                                          https://github.com/hashicorp/yamux/tree/v0.1.2
+  github.com/siderolabs/crypto v0.6.5                                        https://github.com/siderolabs/crypto/tree/v0.6.5
+  github.com/siderolabs/gen v0.8.7                                           https://github.com/siderolabs/gen/tree/v0.8.7
+  github.com/siderolabs/go-api-signature v0.3.13                             https://github.com/siderolabs/go-api-signature/tree/v0.3.13
+  github.com/siderolabs/go-circular v0.2.3                                   https://github.com/siderolabs/go-circular/tree/v0.2.3
+  github.com/siderolabs/go-kubernetes v0.2.41                                https://github.com/siderolabs/go-kubernetes/tree/v0.2.41
+  github.com/siderolabs/go-pointer v1.0.1                                    https://github.com/siderolabs/go-pointer/tree/v1.0.1
+  github.com/siderolabs/go-procfs v0.1.2                                     https://github.com/siderolabs/go-procfs/tree/v0.1.2
+  github.com/siderolabs/go-retry v0.3.3                                      https://github.com/siderolabs/go-retry/tree/v0.3.3
+  github.com/siderolabs/go-talos-support v0.3.1                              https://github.com/siderolabs/go-talos-support/tree/v0.3.1
+  github.com/siderolabs/image-factory v1.6.0                                 https://github.com/siderolabs/image-factory/tree/v1.6.0
+  github.com/siderolabs/net v0.4.0                                           https://github.com/siderolabs/net/tree/v0.4.0
+  github.com/siderolabs/protoenc v0.2.4                                      https://github.com/siderolabs/protoenc/tree/v0.2.4
+  github.com/siderolabs/talos v1.14.0                                        https://github.com/siderolabs/talos/tree/v1.14.0
+  github.com/siderolabs/talos/pkg/machinery v1.14.0                          https://github.com/siderolabs/talos/tree/pkg/machinery/v1.14.0/pkg/machinery
+  github.com/siderolabs/terraform-provider-talos v0.12.0                     https://github.com/siderolabs/terraform-provider-talos/tree/v0.12.0
+
+`go version -m <binary>` prints every module a binary embeds. `make
+notice.check` builds the provider and fails when this list and the binary
+disagree; `python3 hack/notice.py list <binary>` prints the lines above.
+
+The generated files config/schema.json and config/provider-metadata.yaml, and
+the field descriptions in apis/, examples-generated/ and package/crds/, carry
+text taken from the terraform-provider-talos v0.12.0 schema and documentation,
+which is MPL-2.0; its source is the tag listed above.
+
+Terraform itself is not included. Terraform 1.5.7 (MPL-2.0) is used only at
+development time, to dump the provider schema into config/schema.json.

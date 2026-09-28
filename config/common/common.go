@@ -30,8 +30,9 @@ func Defaults() ujconfig.ResourceOption {
 		// unchanged, so "state is null" never means "absent". Absent == no id.
 		r.TerraformPluginFrameworkIsStateEmptyFn = IDIsEmpty
 		r.UseAsync = true
-		// keep the controller on the CRD version (no annotation round-trips)
-		r.ControllerReconcileVersion = r.Version
+		// Keep the controller on the CRD version (no annotation round-trips).
+		// The field defaults to "", which upjet treats as differing from Version.
+		r.ControllerReconcileVersion = r.Version //nolint:staticcheck // deprecated, but upjet v2.5.0 still reads it
 	}
 }
 

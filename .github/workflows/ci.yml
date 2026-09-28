@@ -1,5 +1,8 @@
 name: CI
 
+# The upjet-provider-template CI plus the Talos e2e job. Workflow files cannot be
+# pushed over HTTPS with a token that lacks the workflow scope; push them over SSH.
+
 on:
   push:
     branches:
@@ -8,14 +11,20 @@ on:
   pull_request: {}
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 env:
-  # Common versions
-  GOLANGCI_VERSION: 'v2.12.1'
+  # Common versions. GOLANGCI_VERSION matches GOLANGCILINT_VERSION in the Makefile.
+  GOLANGCI_VERSION: 'v2.13.0'
   DOCKER_BUILDX_VERSION: 'v0.34.1'
 
 jobs:
   detect-noop:
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
     steps:
@@ -27,33 +36,49 @@ jobs:
           paths_ignore: '["**.md", "**.png", "**.jpg"]'
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
 
+  # Pull requests only, and report-only: crddiff and the native schema-version diff
+  # print what changed against the base branch and never fail the job.
   report-breaking-changes:
     runs-on: ubuntu-24.04
     needs: detect-noop
-    if: needs.detect-noop.outputs.noop != 'true'
+    if: github.event_name == 'pull_request' && needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: true
+          fetch-depth: 0
 
-      - name: Get modified CRDs
-        id: modified-crds
-        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+      # The Makefile targets read "<base>:<path>", so the base must be a local branch.
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "+refs/heads/${GITHUB_BASE_REF}:refs/heads/${GITHUB_BASE_REF}"
+
+      - name: Find modified CRDs and schema
+        id: modified
+        run: |
+          crds=$(git diff --name-only "${GITHUB_BASE_REF}...HEAD" -- package/crds | tr '\n' ' ')
+          echo "crds=${crds}" >> "$GITHUB_OUTPUT"
+          if git diff --quiet "${GITHUB_BASE_REF}...HEAD" -- config/schema.json; then
+            echo "schema=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "schema=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Go
+        if: steps.modified.outputs.crds != '' || steps.modified.outputs.schema == 'true'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          files: |
-            package/crds/**
-      - name: Report breaking CRD OpenAPI v3 schema changes
-        if: steps.modified-crds.outputs.any_changed == 'true'
-        env:
-          MODIFIED_CRD_LIST: ${{ steps.modified-crds.outputs.all_changed_files }}
-        run: |
-          make crddiff
-      - name: Report native schema version changes
-        if: ${{ inputs.upjet-based-provider }}
-        run: |
-          make schema-version-diff
+          go-version-file: go.mod
 
+      - name: Report breaking CRD OpenAPI v3 schema changes
+        if: steps.modified.outputs.crds != ''
+        env:
+          MODIFIED_CRD_LIST: ${{ steps.modified.outputs.crds }}
+        run: make crddiff
+
+      - name: Report native schema version changes
+        if: steps.modified.outputs.schema == 'true'
+        run: make schema-version-diff
 
   lint:
     runs-on: ubuntu-24.04
@@ -70,10 +95,13 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
+        run: |
+          echo "cache=$(make go.cachedir)" >> "$GITHUB_OUTPUT"
+          echo "mod_cache=$(make go.mod.cachedir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Go Build Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -85,7 +113,7 @@ jobs:
       - name: Cache Go Dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: .work/pkg
+          path: ${{ steps.go.outputs.mod_cache }}
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
@@ -114,13 +142,17 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+          cache: false
 
+      # The upjet pipeline shells out to goimports; go.mod pins it as a tool.
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
+        run: |
+          echo "cache=$(make go.cachedir)" >> "$GITHUB_OUTPUT"
+          echo "mod_cache=$(make go.mod.cachedir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Go Build Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -132,7 +164,7 @@ jobs:
       - name: Cache Go Dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: .work/pkg
+          path: ${{ steps.go.outputs.mod_cache }}
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
@@ -141,6 +173,10 @@ jobs:
 
       - name: Check Diff
         run: make check-diff
+
+      # NOTICE must name every MPL-2.0 module in the linux_amd64 and linux_arm64 binaries.
+      - name: Check NOTICE
+        run: make notice.check
 
   unit-tests:
     runs-on: ubuntu-24.04
@@ -160,10 +196,13 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
+        run: |
+          echo "cache=$(make go.cachedir)" >> "$GITHUB_OUTPUT"
+          echo "mod_cache=$(make go.mod.cachedir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Go Build Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -175,13 +214,14 @@ jobs:
       - name: Cache Go Dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: .work/pkg
+          path: ${{ steps.go.outputs.mod_cache }}
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Vendor Dependencies
         run: make vendor vendor.check
 
+      # config invariants, the tfwrap wrappers and the offline connector tests
       - name: Run Unit Tests
         run: make -j2 test
 
@@ -209,22 +249,25 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
+        run: |
+          echo "cache=$(make go.cachedir)" >> "$GITHUB_OUTPUT"
+          echo "mod_cache=$(make go.mod.cachedir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Go Build Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ steps.go.outputs.cache }}
-          key: ${{ runner.os }}-build-unit-tests-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-build-unit-tests-
+          key: ${{ runner.os }}-build-local-deploy-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-build-local-deploy-
 
       - name: Cache Go Dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: .work/pkg
+          path: ${{ steps.go.outputs.mod_cache }}
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
@@ -234,10 +277,14 @@ jobs:
       - name: Deploying locally built provider package
         run: make local-deploy
 
+  # kind, Crossplane 2.4.0, this provider and one Talos v1.14.1 container in maintenance
+  # mode on the kind network: insecure first apply, bootstrap, kubeconfig Secret keys,
+  # and no Update call after a provider restart (cluster/test/talos-e2e.sh).
   e2e-talos:
     runs-on: ubuntu-24.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -262,11 +309,12 @@ jobs:
         if: failure()
         run: make controlplane.dump
 
+  # report-breaking-changes is not a need: it only reports, and it is skipped outside
+  # pull requests, which would skip this job too.
   publish-artifacts:
     runs-on: ubuntu-24.04
     needs:
       - detect-noop
-      - report-breaking-changes
       - lint
       - check-diff
       - unit-tests
@@ -298,10 +346,13 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Find the Go Build Cache
         id: go
-        run: echo "cache=$(make go.cachedir)" >> $GITHUB_OUTPUT
+        run: |
+          echo "cache=$(make go.cachedir)" >> "$GITHUB_OUTPUT"
+          echo "mod_cache=$(make go.mod.cachedir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Go Build Cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -313,7 +364,7 @@ jobs:
       - name: Cache Go Dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: .work/pkg
+          path: ${{ steps.go.outputs.mod_cache }}
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 

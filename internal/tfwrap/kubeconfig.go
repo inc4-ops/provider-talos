@@ -81,25 +81,39 @@ func (r *kubeconfigResource) Read(ctx context.Context, req resource.ReadRequest,
 	if resp.Diagnostics.HasError() || cert.IsNull() || cert.IsUnknown() || cert.ValueString() == "" {
 		return
 	}
-	window := defaultRenewal
-	if !dur.IsNull() && !dur.IsUnknown() && dur.ValueString() != "" {
-		if d, err := time.ParseDuration(dur.ValueString()); err == nil {
-			window = d
-		}
+	if expiresWithin(cert.ValueString(), renewalWindow(dur)) {
+		resp.State.RemoveResource(ctx)
 	}
-	der, err := base64.StdEncoding.DecodeString(cert.ValueString())
+}
+
+// renewalWindow returns certificate_renewal_duration, or the upstream default
+// when it is unset or does not parse.
+func renewalWindow(dur types.String) time.Duration {
+	if dur.IsNull() || dur.IsUnknown() || dur.ValueString() == "" {
+		return defaultRenewal
+	}
+	d, err := time.ParseDuration(dur.ValueString())
 	if err != nil {
-		return
+		return defaultRenewal
+	}
+	return d
+}
+
+// expiresWithin reports whether the base64-encoded PEM certificate expires
+// within window. A value that does not decode or parse reports false, so the
+// resource is left alone rather than re-created in a loop.
+func expiresWithin(b64PEM string, window time.Duration) bool {
+	der, err := base64.StdEncoding.DecodeString(b64PEM)
+	if err != nil {
+		return false
 	}
 	block, _ := pem.Decode(der)
 	if block == nil {
-		return
+		return false
 	}
 	c, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return
+		return false
 	}
-	if c.NotAfter.Before(now().Add(window)) {
-		resp.State.RemoveResource(ctx)
-	}
+	return c.NotAfter.Before(now().Add(window))
 }

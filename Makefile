@@ -146,6 +146,17 @@ check-tf-provider-version:
 		echo "go.mod has terraform-provider-talos $$gomod, Makefile has v$(TERRAFORM_PROVIDER_VERSION)"; exit 1; fi
 
 .PHONY: $(TERRAFORM_PROVIDER_SCHEMA) pull-docs check-terraform-version check-tf-provider-version
+
+# NOTICE must list every MPL-2.0 module compiled into the shipped binaries. Builds the
+# provider for each of $(PLATFORMS) and compares `go version -m` with NOTICE (hack/notice.py).
+notice.check:
+	@$(INFO) checking NOTICE against the modules in the provider binaries
+	@$(foreach p,$(PLATFORMS),CGO_ENABLED=0 GOOS=$(word 1,$(subst _, ,$(p))) GOARCH=$(word 2,$(subst _, ,$(p))) $(GO) build -trimpath -o $(WORK_DIR)/notice/$(p)/provider ./cmd/provider || $(FAIL);)
+	@python3 hack/notice.py check NOTICE $(foreach p,$(PLATFORMS),$(WORK_DIR)/notice/$(p)/provider) || $(FAIL)
+	@$(OK) checking NOTICE against the modules in the provider binaries
+
+.PHONY: notice.check
+
 # ====================================================================================
 # Targets
 
@@ -232,7 +243,10 @@ e2e.deploy:
 
 .PHONY: e2e-talos e2e.deploy
 
-crddiff: $(UPTEST)
+# Reports only; it never fails. crossplane/uptest has no cmd/crddiff (checked v0.12.0 to
+# v2.2.0) and no v0.12.1 tag, so run it from the upbound/uptest module, as the
+# crossplane-contrib providers do.
+crddiff:
 	@$(INFO) Checking breaking CRD schema changes
 	@for crd in $${MODIFIED_CRD_LIST}; do \
 		if ! git cat-file -e "$${GITHUB_BASE_REF}:$${crd}" 2>/dev/null; then \
@@ -240,7 +254,7 @@ crddiff: $(UPTEST)
 			continue ; \
 		fi ; \
 		echo "Checking $${crd} for breaking API changes..." ; \
-		changes_detected=$$(go run github.com/crossplane/uptest/cmd/crddiff@$(CRDDIFF_VERSION) revision --enable-upjet-extensions <(git cat-file -p "$${GITHUB_BASE_REF}:$${crd}") "$${crd}" 2>&1) ; \
+		changes_detected=$$(go run github.com/upbound/uptest/cmd/crddiff@$(CRDDIFF_VERSION) revision --enable-upjet-extensions <(git cat-file -p "$${GITHUB_BASE_REF}:$${crd}") "$${crd}" 2>&1) ; \
 		if [[ $$? != 0 ]] ; then \
 			printf "\033[31m"; echo "Breaking change detected!"; printf "\033[0m" ; \
 			echo "$${changes_detected}" ; \
@@ -249,14 +263,17 @@ crddiff: $(UPTEST)
 	done
 	@$(OK) Checking breaking CRD schema changes
 
+# Compares the native schema version of every resource in config/schema.json with the base
+# branch; upjet v2 writes no config/generated.lst, so the list comes from the schema itself.
 schema-version-diff:
 	@$(INFO) Checking for native state schema version changes
-	@export PREV_PROVIDER_VERSION=$$(git cat-file -p "${GITHUB_BASE_REF}:Makefile" | sed -nr 's/^export[[:space:]]*TERRAFORM_PROVIDER_VERSION[[:space:]]*:=[[:space:]]*(.+)/\1/p'); \
+	@export PREV_PROVIDER_VERSION=$$(git cat-file -p "${GITHUB_BASE_REF}:Makefile" | sed -nr 's/^export[[:space:]]*TERRAFORM_PROVIDER_VERSION[[:space:]]*[?:]?=[[:space:]]*(.+)/\1/p'); \
 	echo Detected previous Terraform provider version: $${PREV_PROVIDER_VERSION}; \
 	echo Current Terraform provider version: $${TERRAFORM_PROVIDER_VERSION}; \
 	mkdir -p $(WORK_DIR); \
 	git cat-file -p "$${GITHUB_BASE_REF}:config/schema.json" > "$(WORK_DIR)/schema.json.$${PREV_PROVIDER_VERSION}"; \
-	./scripts/version_diff.py config/generated.lst "$(WORK_DIR)/schema.json.$${PREV_PROVIDER_VERSION}" config/schema.json
+	jq -c '[.provider_schemas[].resource_schemas | keys[]]' config/schema.json > "$(WORK_DIR)/generated.lst"; \
+	python3 scripts/version_diff.py "$(WORK_DIR)/generated.lst" "$(WORK_DIR)/schema.json.$${PREV_PROVIDER_VERSION}" config/schema.json
 	@$(OK) Checking for native state schema version changes
 
 .PHONY: cobertura submodules fallthrough run crds.clean

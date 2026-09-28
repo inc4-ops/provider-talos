@@ -81,12 +81,13 @@ linters:
   exclusions:
     generated: lax
     rules:
+      # Tests repeat fixture literals (node IPs, attribute names) on purpose.
       - linters:
           - dupl
           - errcheck
+          - goconst
           - gocyclo
           - gosec
-          - scopelint
           - unparam
         path: _test(ing)?\.go
       - linters:

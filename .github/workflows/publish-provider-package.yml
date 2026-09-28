@@ -1,10 +1,16 @@
 name: Publish Provider Package
 
+# Builds linux_amd64 and linux_arm64 and pushes the package index to
+# ghcr.io/inc4-ops/provider-talos:<version>. Run it from the tag ("Use workflow
+# from" the tag, or `gh workflow run publish-provider-package.yml --ref v0.1.0 -f
+# version=v0.1.0`): the called workflow builds the ref this run starts from.
+# Consumers pin the pushed index digest, never the tag.
+
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish, equal to an existing tag (e.g. v0.1.0)"
+        description: "Version to publish, equal to an existing tag (e.g. v0.1.0); run from that tag"
         required: true
 
 # The called workflow logs in to ghcr.io with the token passed as GHCR_PAT; a
@@ -14,14 +20,33 @@ permissions:
   packages: write
 
 jobs:
+  # Refuse to label anything but the tagged commit with a release version.
+  verify-ref:
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Check that the run starts from the version tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version ${VERSION} is not vMAJOR.MINOR.PATCH[-PRERELEASE]"
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" != "refs/tags/${VERSION}" ]]; then
+            echo "::error::run this workflow from tag ${VERSION}, not ${GITHUB_REF}"
+            exit 1
+          fi
+
   publish-provider-package:
+    needs: verify-ref
     uses: crossplane-contrib/provider-workflows/.github/workflows/publish-provider.yml@451c4dc6ad3691b0a702a997a0ac24e8bbc8bbaa # main 2026-02-25
     with:
       repository: provider-talos
       version: ${{ inputs.version }}
-      go-version: "1.26.8"
+      go-version: "1.26.8"        # keep equal to the go directive in go.mod
       registry_org: inc4-ops      # -> ghcr.io/inc4-ops/provider-talos:<version>
-      mirror: false               # no xpkg.upbound.io mirror
+      mirror: false               # no xpkg.upbound.io mirror; no mirror secrets are passed either
       cleanup-disk: true
     secrets:
       GHCR_PAT: ${{ secrets.GITHUB_TOKEN }}

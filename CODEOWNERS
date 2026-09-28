@@ -1,15 +1,9 @@
-# This file controls automatic PR reviewer assignment. See the following docs:
+# Automatic PR reviewer assignment:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 #
-# * https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-# * https://docs.github.com/en/organizations/organizing-members-into-teams/managing-code-review-settings-for-your-team
-#
-# The goal of this file is for most PRs to automatically and fairly have one
-# maintainer set as PR reviewers. All maintainers have permission to approve 
-# and merge PRs. All PRs must be approved by at least one maintainer before being merged.
-# 
-# Where possible, prefer explicitly specifying a maintainer who is a subject
-# matter expert for a particular part of the codebase rather than using a group.
-#
+# The main ruleset requires a pull request; code-owner review is not required. Owners
+# must be users (@login), teams (@org/team) with write access to this repository, or
+# emails; an organisation login alone (@inc4-ops) is reported as "Unknown owner".
+# Switch to a team, e.g. @inc4-ops/devops, once it has write access here.
 
-# Fallback owners
-#*			@username
+*  @SegovChik

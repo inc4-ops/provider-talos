@@ -60,7 +60,10 @@ func newHarness(t *testing.T, p provider.Provider) harness {
 }
 
 func (h harness) val(t *testing.T, m map[string]any) tftypes.Value {
-	b, _ := json.Marshal(m)
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v, err := tftypes.ValueFromJSONWithOpts(b, h.ty, tftypes.ValueFromJSONOpts{IgnoreUndefinedAttributes: true})
 	if err != nil {
 		t.Fatal(err)
