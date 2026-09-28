@@ -193,23 +193,44 @@ local-deploy: build controlplane.up local.xpkg.deploy.provider.$(PROJECT_NAME)
 	@$(KUBECTL) -n crossplane-system wait --for=condition=Available deployment --all --timeout=5m
 	@$(OK) running locally built provider
 
-# Real Talos node e2e (Talos container on the kind network). Needs docker, jq, yq, envsubst.
+# Live e2e against a real Talos node: a Talos container in maintenance mode on the
+# kind docker network (cluster/test/talos-e2e.sh). `make e2e` recreates the kind
+# cluster, builds and deploys the provider, then runs the script; `make e2e-talos`
+# runs the script against a running `make local-deploy`. The host needs docker and
+# jq; kubectl, talosctl and yq are pinned downloads. The script only ever talks to
+# the kind-$(KIND_CLUSTER_NAME) context. Budget about 4 GB of docker memory.
 TALOS_VERSION ?= v1.14.1
+K8S_VERSION ?= 1.36.5
 TALOSCTL := $(TOOLS_HOST_DIR)/talosctl-$(TALOS_VERSION)
+
 $(TALOSCTL):
 	@$(INFO) installing talosctl $(TALOS_VERSION)
-	@curl -fsSLo $(TALOSCTL) --create-dirs https://github.com/siderolabs/talos/releases/download/$(TALOS_VERSION)/talosctl-$(HOSTOS)-$(SAFEHOSTARCH) || $(FAIL)
-	@chmod +x $(TALOSCTL)
+	@mkdir -p $(TOOLS_HOST_DIR) || $(FAIL)
+	@curl -fsSLo $(TALOSCTL).tmp https://github.com/siderolabs/talos/releases/download/$(TALOS_VERSION)/talosctl-$(HOSTOS)-$(SAFEHOSTARCH) || $(FAIL)
+	@chmod +x $(TALOSCTL).tmp && mv $(TALOSCTL).tmp $(TALOSCTL) || $(FAIL)
 	@$(OK) installing talosctl $(TALOS_VERSION)
 
-e2e-talos: $(KUBECTL) $(TALOSCTL)
+e2e-talos: $(KUBECTL) $(TALOSCTL) $(YQ)
 	@$(INFO) running Talos e2e
-	@KUBECTL=$(KUBECTL) TALOSCTL=$(TALOSCTL) TALOS_VERSION=$(TALOS_VERSION) ./cluster/test/talos-e2e.sh || $(FAIL)
+	@KUBECTL=$(KUBECTL) TALOSCTL=$(TALOSCTL) YQ=$(YQ) \
+		TALOS_VERSION=$(TALOS_VERSION) K8S_VERSION=$(K8S_VERSION) \
+		KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) CROSSPLANE_NAMESPACE=$(CROSSPLANE_NAMESPACE) \
+		./cluster/test/talos-e2e.sh || $(FAIL)
 	@$(OK) running Talos e2e
 
-e2e: local-deploy e2e-talos
+# build/makelib runs `make e2e` as the sub-makes e2e.init, e2e.run and e2e.done in
+# order, so the provider is deployed before the e2e starts, even under make -j.
+e2e.init: e2e.deploy
+e2e.run: e2e-talos
 
-.PHONY: e2e-talos
+# A fresh kind cluster, as build/makelib/uptest.mk does for its e2e: local.xpkg.deploy
+# reuses a fixed package digest and image tag, so a provider already installed in a
+# reused cluster keeps its old CRDs and keeps running its old image.
+e2e.deploy:
+	@$(MAKE) controlplane.down
+	@$(MAKE) local-deploy
+
+.PHONY: e2e-talos e2e.deploy
 
 crddiff: $(UPTEST)
 	@$(INFO) Checking breaking CRD schema changes
