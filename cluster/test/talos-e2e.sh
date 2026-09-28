@@ -208,7 +208,9 @@ host=$(jq -r '.host | @base64d' <<<"$before")
 # kube-apiserver static pod can still be pulling its image, so retry for a while.
 log "kubectl --kubeconfig <Secret $SECRET> get --raw /version"
 jq -r '.kubeconfig | @base64d' <<<"$before" > "$WORK/kubeconfig"
-docker cp "$WORK/kubeconfig" "$KIND_NODE:$KIND_KUBECONFIG" >/dev/null
+# Not docker cp: kind mounts a tmpfs on the node's /tmp, and docker cp writes beneath that mount,
+# so the file would be invisible inside the container. Write through the running container instead.
+docker exec -i "$KIND_NODE" sh -c "umask 077 && cat > '$KIND_KUBECONFIG'" < "$WORK/kubeconfig"
 version=
 for _ in $(seq 120); do
   if version=$(docker exec "$KIND_NODE" kubectl --kubeconfig "$KIND_KUBECONFIG" \
